@@ -1,4 +1,4 @@
-# JChess: Local Bot-vs-Bot Chess with Raylib
+# B2B-Chess: Local Bot-vs-Bot Chess with Raylib
 
 This project lets you watch two chess engines (UCI bots) play against each other locally, with a graphical board using Raylib and custom piece images.
 
