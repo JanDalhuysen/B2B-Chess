@@ -1,3 +1,0 @@
-/home/ubuntu/git/jchess/build/CMakeFiles/main.dir
-/home/ubuntu/git/jchess/build/CMakeFiles/edit_cache.dir
-/home/ubuntu/git/jchess/build/CMakeFiles/rebuild_cache.dir
