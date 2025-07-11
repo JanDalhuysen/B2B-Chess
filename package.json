@@ -1,0 +1,17 @@
+{
+  "name": "b2b-chess",
+  "version": "1.0.0",
+  "description": "A Node.js application for two LLMs to play chess against each other.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "chess.js": "^1.0.0-beta.8",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>B2B Chess</title>
+    <!-- integrity="sha384-q94+BZYoMzvU2LwZj3iU5DbveC/5VLEuZTF2R7/AkPNMl/TEMBROgJ26mIVpFkct" -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
+    />
+    <!-- crossorigin="anonymous"> -->
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #board {
+        width: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>B2B Chess</h1>
+    <div id="board"></div>
+
+    <div>
+      <label for="whiteBot">White Bot:</label>
+      <select id="whiteBot">
+        <option value="fairy-stockfish-largeboard_x86-64.exe">
+          fairy-stockfish-largeboard_x86-64.exe
+        </option>
+        <option value="stockfish-windows-x86-64-avx2.exe">
+          stockfish-windows-x86-64-avx2.exe
+        </option>
+        <option value="fairy-stockfish_x86-64">Fairy Stockfish Linux</option>
+        │
+        <option value="stockfish-ubuntu-x86-64-avx2">Stockfish Linux</option>
+      </select>
+    </div>
+    <div>
+      <label for="blackBot">Black Bot:</label>
+      <select id="blackBot">
+        <option value="stockfish-windows-x86-64-avx2.exe">
+          stockfish-windows-x86-64-avx2.exe
+        </option>
+        <option value="fairy-stockfish-largeboard_x86-64.exe">
+          fairy-stockfish-largeboard_x86-64.exe
+        </option>
+        <option value="fairy-stockfish_x86-64">Fairy Stockfish Linux</option>
+        │
+        <option value="stockfish-ubuntu-x86-64-avx2">Stockfish Linux</option>
+      </select>
+    </div>
+    <button id="startGame">Start Game</button>
+    <button id="resetGame">Reset Game</button>
+    <p id="status"></p>
+    <p id="pgn"></p>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <!-- crossorigin="anonymous"></script> -->
+    <!-- integrity="sha384-8Vi8VHwn3vjQ9eUHUxex3JSN/Angelodf1A4_A+BgqIjC/bFGDp/7HOKLHhAg2zQ+" -->
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <!-- crossorigin="anonymous"></script> -->
+
+    <script>
+      const socket = io();
+      const board = Chessboard("board", "start");
+      const status = $("#status");
+      const pgn = $("#pgn");
+
+      socket.on("boardState", (fen) => {
+        board.position(fen);
+      });
+
+      socket.on("gameStatus", (msg) => {
+        status.text(msg);
+      });
+
+      socket.on("gamePgn", (pgnStr) => {
+        pgn.text(pgnStr);
+      });
+
+      $("#startGame").on("click", () => {
+        const whiteBot = $("#whiteBot").val();
+        const blackBot = $("#blackBot").val();
+        socket.emit("startGame", { whiteBot, blackBot });
+      });
+
+      $("#resetGame").on("click", () => {
+        socket.emit("resetGame");
+      });
+    </script>
+  </body>
+</html>
