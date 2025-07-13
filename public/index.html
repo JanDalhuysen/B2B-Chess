@@ -63,14 +63,80 @@
     <!-- integrity="sha384-8Vi8VHwn3vjQ9eUHUxex3JSN/Angelodf1A4_A+BgqIjC/bFGDp/7HOKLHhAg2zQ+" -->
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
     <!-- crossorigin="anonymous"></script> -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <!-- integrity="sha512-bfi2JzgoGAi8GLeT62xI2V2aR2wJmaD/eI0Gf9i22/V2ItL2GgdTsd+tL1a2LgnTZEs20H/xQ22iC2P95J0/YA=="  -->
+    <!-- crossorigin="anonymous" referrerpolicy="no-referrer"></script> -->
 
     <script>
       const socket = io();
-      const board = Chessboard("board", "start");
+      let board = null;
+      const game = new Chess();
       const status = $("#status");
       const pgn = $("#pgn");
+      let whitePlayer = "human";
+      let blackPlayer = "stockfish-windows-x86-64-avx2.exe";
+
+      function onDragStart(source, piece, position, orientation) {
+        // do not pick up pieces if the game is over
+        if (game.game_over()) return false;
+
+        // only pick up pieces for the side to move
+        if (
+          (game.turn() === "w" && piece.search(/^b/) !== -1) ||
+          (game.turn() === "b" && piece.search(/^w/) !== -1)
+        ) {
+          return false;
+        }
+
+        if (
+          (game.turn() === "w" && whitePlayer !== "human") ||
+          (game.turn() === "b" && blackPlayer !== "human")
+        ) {
+          return false;
+        }
+      }
+
+      function onDrop(source, target) {
+        // see if the move is legal
+        let move;
+        try {
+          move = game.move({
+            from: source,
+            to: target,
+            promotion: "q", // NOTE: always promote to a queen for simplicity
+          });
+        } catch (e) {
+          // illegal move
+          console.log(e);
+        }
+
+        if (move === null) return "snapback";
+
+        socket.emit("makeMove", move);
+      }
+
+      // update the board position after the piece snap
+      // for castling, en passant, pawn promotion
+      function onSnapEnd() {
+        board.position(game.fen());
+      }
+
+      const config = {
+        draggable: true,
+        position: "start",
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onSnapEnd: onSnapEnd,
+      };
+      board = Chessboard("board", config);
 
       socket.on("boardState", (fen) => {
+        try {
+          game.load(fen);
+        } catch (e) {
+          console.log(e);
+        }
         board.position(fen);
       });
 
@@ -83,9 +149,12 @@
       });
 
       $("#startGame").on("click", () => {
-        const whitePlayer = $("#whitePlayer").val();
-        const blackPlayer = $("#blackPlayer").val();
-        socket.emit("startGame", { whiteBot: whitePlayer, blackBot: blackPlayer });
+        whitePlayer = $("#whitePlayer").val();
+        blackPlayer = $("#blackPlayer").val();
+        socket.emit("startGame", {
+          whiteBot: whitePlayer,
+          blackBot: blackPlayer,
+        });
       });
 
       $("#resetGame").on("click", () => {

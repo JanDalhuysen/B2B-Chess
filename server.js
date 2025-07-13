@@ -41,33 +41,63 @@ io.on('connection', (socket) => {
     io.emit('boardState', chess.fen());
     io.emit('gameStatus', 'Game started!');
     io.emit('gamePgn', '');
-    
+
     // Determine if players are human or bot
     whiteIsBot = whiteBot !== 'human';
     blackIsBot = blackBot !== 'human';
 
-    whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
-    blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    if (whiteIsBot) {
+      whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      whiteBotProcess.stdout.on('data', (data) => {
+        console.log(`White Bot: ${data}`);
+        handleBotOutput(data.toString(), 'w');
+      });
+      whiteBotProcess.stderr.on('data', (data) => {
+        console.error(`White Bot Error: ${data}`);
+      });
+    }
 
-    whiteBotProcess.stdout.on('data', (data) => {
-      console.log(`White Bot: ${data}`);
-      handleBotOutput(data.toString(), 'w');
-    });
-    blackBotProcess.stdout.on('data', (data) => {
-      console.log(`Black Bot: ${data}`);
-      handleBotOutput(data.toString(), 'b');
-    });
-
-    whiteBotProcess.stderr.on('data', (data) => {
-      console.error(`White Bot Error: ${data}`);
-    });
-    blackBotProcess.stderr.on('data', (data) => {
-      console.error(`Black Bot Error: ${data}`);
-    });
+    if (blackIsBot) {
+      blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      blackBotProcess.stdout.on('data', (data) => {
+        console.log(`Black Bot: ${data}`);
+        handleBotOutput(data.toString(), 'b');
+      });
+      blackBotProcess.stderr.on('data', (data) => {
+        console.error(`Black Bot Error: ${data}`);
+      });
+    }
 
     gameActive = true;
     currentTurn = 'w';
-    makeBotMove();
+
+    if (whiteIsBot) {
+      makeBotMove();
+    } else {
+      io.emit('gameStatus', 'White human to move');
+    }
+  });
+
+  socket.on('makeMove', (move) => {
+    if (!gameActive) return;
+
+    const result = chess.move(move);
+    if (result) {
+      io.emit('boardState', chess.fen());
+      io.emit('gamePgn', chess.pgn());
+
+      if (chess.turn() === 'w' && whiteIsBot) {
+        currentTurn = 'w';
+        makeBotMove();
+      } else if (chess.turn() === 'b' && blackIsBot) {
+        currentTurn = 'b';
+        makeBotMove();
+      } else {
+        io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
+      }
+    } else {
+      socket.emit('gameStatus', 'Invalid move');
+    }
   });
 
   socket.on('resetGame', () => {
