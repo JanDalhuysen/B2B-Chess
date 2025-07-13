@@ -6,6 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { Chess } from 'chess.js';
 import { spawn } from 'child_process';
+import { execSync } from 'child_process';
 
 const app = express();
 const httpServer = createServer(app);
@@ -16,6 +17,8 @@ let gameActive = false;
 let whiteBotProcess = null;
 let blackBotProcess = null;
 let currentTurn = 'w';
+let whiteIsBot = true;
+let blackIsBot = true;
 
 const BOT_PATH = './bots/';
 
@@ -38,6 +41,10 @@ io.on('connection', (socket) => {
     io.emit('boardState', chess.fen());
     io.emit('gameStatus', 'Game started!');
     io.emit('gamePgn', '');
+    
+    // Determine if players are human or bot
+    whiteIsBot = whiteBot !== 'human';
+    blackIsBot = blackBot !== 'human';
 
     whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
     blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -128,8 +135,16 @@ function handleBotOutput(output, color) {
           //   if (whiteBotProcess) whiteBotProcess.kill();
           //   if (blackBotProcess) blackBotProcess.kill();
           // } else {
-            currentTurn = currentTurn === 'w' ? 'b' : 'w';
-            makeBotMove();
+            // Only switch to bot move if the current player is a bot
+            if (chess.turn() === 'w' && whiteIsBot) {
+              currentTurn = 'w';
+              makeBotMove();
+            } else if (chess.turn() === 'b' && blackIsBot) {
+              currentTurn = 'b';
+              makeBotMove();
+            } else {
+              io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
+            }
           // }
         } else {
           console.error(`Invalid move received from ${color} bot: ${move}`);

@@ -22,8 +22,9 @@
     <div id="board"></div>
 
     <div>
-      <label for="whiteBot">White Bot:</label>
-      <select id="whiteBot">
+      <label for="whitePlayer">White Player:</label>
+      <select id="whitePlayer">
+        <option value="human">Human</option>
         <option value="fairy-stockfish-largeboard_x86-64.exe">
           fairy-stockfish-largeboard_x86-64.exe
         </option>
@@ -36,8 +37,9 @@
       </select>
     </div>
     <div>
-      <label for="blackBot">Black Bot:</label>
-      <select id="blackBot">
+      <label for="blackPlayer">Black Player:</label>
+      <select id="blackPlayer">
+        <option value="human">Human</option>
         <option value="stockfish-windows-x86-64-avx2.exe">
           stockfish-windows-x86-64-avx2.exe
         </option>
@@ -81,9 +83,9 @@
       });
 
       $("#startGame").on("click", () => {
-        const whiteBot = $("#whiteBot").val();
-        const blackBot = $("#blackBot").val();
-        socket.emit("startGame", { whiteBot, blackBot });
+        const whitePlayer = $("#whitePlayer").val();
+        const blackPlayer = $("#blackPlayer").val();
+        socket.emit("startGame", { whiteBot: whitePlayer, blackBot: blackPlayer });
       });
 
       $("#resetGame").on("click", () => {
