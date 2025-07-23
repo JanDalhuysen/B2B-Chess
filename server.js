@@ -1,12 +1,16 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+// import { Server as jan_server } from '@modelcontextprotocol/sdk/server/index.js';
+// import { jan_server, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+// import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { Chess } from 'chess.js';
 import { spawn } from 'child_process';
 import { execSync } from 'child_process';
+
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -46,7 +50,7 @@ io.on('connection', (socket) => {
     whiteIsBot = whiteBot !== 'human';
     blackIsBot = blackBot !== 'human';
 
-    if (whiteIsBot) {
+    if (whiteIsBot && whiteBot !== 'mcp') {
       whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
       whiteBotProcess.stdout.on('data', (data) => {
         console.log(`White Bot: ${data}`);
@@ -57,7 +61,7 @@ io.on('connection', (socket) => {
       });
     }
 
-    if (blackIsBot) {
+    if (blackIsBot && blackBot !== 'mcp') {
       blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
       blackBotProcess.stdout.on('data', (data) => {
         console.log(`Black Bot: ${data}`);
@@ -71,8 +75,10 @@ io.on('connection', (socket) => {
     gameActive = true;
     currentTurn = 'w';
 
-    if (whiteIsBot) {
+    if (whiteIsBot && whiteBot !== 'mcp') {
       makeBotMove();
+    } else if (whiteBot === 'mcp') {
+      io.emit('gameStatus', 'Waiting for MCP move from White');
     } else {
       io.emit('gameStatus', 'White human to move');
     }
@@ -80,6 +86,7 @@ io.on('connection', (socket) => {
 
   socket.on('makeMove', (move) => {
     if (!gameActive) return;
+    console.log(`Received move: ${move}`);
 
     const result = chess.move(move);
     if (result) {
@@ -146,6 +153,7 @@ function handleBotOutput(output, color) {
     const move = bestmoveLine.split(' ')[1];
     if (move) {
       try {
+        console.log(`Bot ${color} move: ${move}`);
         const result = chess.move(move);
         if (result) {
           io.emit('boardState', chess.fen());
@@ -165,16 +173,20 @@ function handleBotOutput(output, color) {
           //   if (whiteBotProcess) whiteBotProcess.kill();
           //   if (blackBotProcess) blackBotProcess.kill();
           // } else {
-            // Only switch to bot move if the current player is a bot
-            if (chess.turn() === 'w' && whiteIsBot) {
-              currentTurn = 'w';
-              makeBotMove();
-            } else if (chess.turn() === 'b' && blackIsBot) {
-              currentTurn = 'b';
-              makeBotMove();
-            } else {
-              io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
-            }
+          // Only switch to bot move if the current player is a bot
+          if (chess.turn() === 'w' && whiteIsBot && whiteBotProcess) {
+            currentTurn = 'w';
+            makeBotMove();
+          } else if (chess.turn() === 'b' && blackIsBot && blackBotProcess) {
+            currentTurn = 'b';
+            makeBotMove();
+          } else if (chess.turn() === 'w' && whiteIsBot && whiteBot === 'mcp') {
+            io.emit('gameStatus', 'Waiting for MCP move from White');
+          } else if (chess.turn() === 'b' && blackIsBot && blackBot === 'mcp') {
+            io.emit('gameStatus', 'Waiting for MCP move from Black');
+          } else {
+            io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
+          }
           // }
         } else {
           console.error(`Invalid move received from ${color} bot: ${move}`);
@@ -186,12 +198,12 @@ function handleBotOutput(output, color) {
   }
 }
 
-const mcpServer = new McpServer({
+const jan_server = new McpServer({
   name: 'b2b-chess',
   version: '1.0.0',
 });
 
-mcpServer.setRequestHandler(
+jan_server.tool("get_game_state",
   z.object({
     method: z.literal('get_game_state'),
     params: z.object({}),
@@ -212,7 +224,7 @@ mcpServer.setRequestHandler(
   }
 );
 
-mcpServer.setRequestHandler(
+jan_server.tool("get_legal_moves",
   z.object({
     method: z.literal('get_legal_moves'),
     params: z.object({}),
@@ -229,18 +241,38 @@ mcpServer.setRequestHandler(
   }
 );
 
-mcpServer.setRequestHandler(
-  z.object({
-    method: z.literal('make_move'),
-    params: z.object({
-      move: z.string().describe('The move to make in algebraic notation (e.g., e2e4, e7e8q).'),
-    }),
-  }),
-  async ({ params }) => {
+jan_server.tool(
+  "make_move",
+  { move: z.string().describe('The move to make in algebraic notation (e.g., e2e4, e7e8q).') },
+  async ({ move }) => {
     try {
-      const result = chess.move(params.move);
+      // If move is an object, try to extract the move string
+      let moveStr = move;
+      if (typeof move === 'object' && move !== null) {
+        // Try common property names
+        moveStr = move.move || move.value || move.toString();
+      }
+      console.log(`MCP making move: ${moveStr}`);
+
+      const result = chess.move(moveStr);
       if (result) {
         io.emit('boardState', chess.fen());
+        io.emit('gamePgn', chess.pgn());
+
+        if (chess.turn() === 'w' && whiteIsBot && whiteBotProcess) {
+          currentTurn = 'w';
+          makeBotMove();
+        } else if (chess.turn() === 'b' && blackIsBot && blackBotProcess) {
+          currentTurn = 'b';
+          makeBotMove();
+        } else if (chess.turn() === 'w' && whiteIsBot && whiteBot === 'mcp') {
+          io.emit('gameStatus', 'Waiting for MCP move from White');
+        } else if (chess.turn() === 'b' && blackIsBot && blackBot === 'mcp') {
+          io.emit('gameStatus', 'Waiting for MCP move from Black');
+        } else {
+          io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
+        }
+
         return {
           content: [
             {
@@ -272,8 +304,67 @@ mcpServer.setRequestHandler(
   }
 );
 
+// jan_server.tool("make_move",
+//   z.object({
+//     method: z.literal('make_move'),
+//     params: z.object({
+//       move: z.string().describe('The move to make in algebraic notation (e.g., e2e4, e7e8q).'),
+//     }),
+//   }),
+//   async ({ params }) => {
+//     try {
+//       const result = chess.move(params.move);
+//       if (result) {
+//         // io.emit('boardState', chess.fen());
+//         io.emit('gamePgn', chess.pgn());
+
+//         if (chess.turn() === 'w' && whiteIsBot && whiteBotProcess) {
+//           currentTurn = 'w';
+//           makeBotMove();
+//         } else if (chess.turn() === 'b' && blackIsBot && blackBotProcess) {
+//           currentTurn = 'b';
+//           makeBotMove();
+//         } else if (chess.turn() === 'w' && whiteIsBot && whiteBot === 'mcp') {
+//           io.emit('gameStatus', 'Waiting for MCP move from White');
+//         } else if (chess.turn() === 'b' && blackIsBot && blackBot === 'mcp') {
+//           io.emit('gameStatus', 'Waiting for MCP move from Black');
+//         } else {
+//           io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
+//         }
+
+//         return {
+//           content: [
+//             {
+//               type: 'text',
+//               text: `Move successful. New FEN: ${chess.fen()}`,
+//             },
+//           ],
+//         };
+//       } else {
+//         return {
+//           content: [
+//             {
+//               type: 'text',
+//               text: 'Invalid move.',
+//             },
+//           ],
+//         };
+//       }
+//     } catch (error) {
+//       return {
+//         content: [
+//           {
+//             type: 'text',
+//             text: `Error making move: ${error.message}`,
+//           },
+//         ],
+//       };
+//     }
+//   }
+// );
+
 const transport = new StdioServerTransport();
-mcpServer.connect(transport);
+jan_server.connect(transport);
 
 const port = process.env.PORT || 3000;
 httpServer.listen(port, () => {

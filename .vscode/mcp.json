@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "B2B-Chess": {
+      "command": "node",
+      "args": ["C:/Apps/git/JanDalhuysen/B2B-Chess/server.js"]
+    }
+  }
+}
