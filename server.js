@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { Chess } from 'chess.js';
 import { spawn } from 'child_process';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -27,6 +29,27 @@ let blackIsBot = true;
 const BOT_PATH = './bots/';
 
 app.use(express.static('public'));
+
+app.get('/api/bots', (req, res) => {
+  fs.readdir(BOT_PATH, (err, files) => {
+    if (err) {
+      console.error('Failed to read bots directory:', err);
+      return res.status(500).json({ error: 'Failed to retrieve bots' });
+    }
+
+    const bots = files.map(file => {
+      const extension = path.extname(file);
+      const os = extension === '.exe' ? 'Windows' : 'Linux';
+      const name = file.replace(extension, '');
+      return {
+        value: file,
+        name: `${name} (${os})`,
+      };
+    });
+
+    res.json(bots);
+  });
+});
 
 io.on('connection', (socket) => {
   console.log('a user connected');

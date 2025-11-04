@@ -258,14 +258,6 @@
           <select id="whitePlayer">
             <option value="human">Human</option>
             <option value="mcp">MCP</option>
-            <option value="fairy-stockfish-largeboard_x86-64.exe">
-              Fairy Stockfish (Windows)
-            </option>
-            <option value="stockfish-windows-x86-64-avx2.exe">
-              Stockfish AVX2 (Windows)
-            </option>
-            <option value="fairy-stockfish_x86-64">Fairy Stockfish (Linux)</option>
-            <option value="stockfish-ubuntu-x86-64-avx2">Stockfish AVX2 (Linux)</option>
           </select>
         </div>
 
@@ -275,14 +267,6 @@
           <select id="blackPlayer">
             <option value="human">Human</option>
             <option value="mcp">MCP</option>
-            <option value="stockfish-windows-x86-64-avx2.exe">
-              Stockfish AVX2 (Windows)
-            </option>
-            <option value="fairy-stockfish-largeboard_x86-64.exe">
-              Fairy Stockfish (Windows)
-            </option>
-            <option value="fairy-stockfish_x86-64">Fairy Stockfish (Linux)</option>
-            <option value="stockfish-ubuntu-x86-64-avx2">Stockfish AVX2 (Linux)</option>
           </select>
         </div>
 
@@ -306,6 +290,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
     <script>
+      $(document).ready(function () {
+        $.get('/api/bots', function (bots) {
+          const whitePlayerSelect = $('#whitePlayer');
+          const blackPlayerSelect = $('#blackPlayer');
+
+          // Clear existing options except for 'Human' and 'MCP'
+          whitePlayerSelect.find('option:not([value="human"], [value="mcp"])').remove();
+          blackPlayerSelect.find('option:not([value="human"], [value="mcp"])').remove();
+
+          bots.forEach((bot, index) => {
+            const whiteOption = `<option value="${bot.value}">${bot.name}</option>`;
+            whitePlayerSelect.append(whiteOption);
+
+            const blackOption = $(`<option value="${bot.value}">${bot.name}</option>`);
+            if (index === bots.length - 1) {
+              blackOption.attr('selected', 'selected');
+            }
+            blackPlayerSelect.append(blackOption);
+          });
+        });
+      });
+
       const socket = io();
       let board = null;
       const game = new Chess();
