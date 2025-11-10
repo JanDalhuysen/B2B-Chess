@@ -1,7 +1,6 @@
 
-import { spawn } from 'child_process';
-import { McpClient } from '@modelcontextprotocol/sdk/client/mcp.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { io } from 'socket.io-client';
+import { Chess } from 'chess.js';
 import axios from 'axios';
 import 'dotenv/config';
 
@@ -12,6 +11,9 @@ const {
   OPENROUTER_API_KEY,
   OPENROUTER_MODEL,
 } = process.env;
+
+const SERVER_URL = 'http://localhost:3000';
+const chess = new Chess();
 
 async function getLLMChoice(prompt) {
   if (LLM_PROVIDER === 'ollama') {
@@ -34,6 +36,7 @@ async function getLLMChoice(prompt) {
         },
       }
     );
+    console.log(response.data);
     return response.data.choices[0].message.content.trim();
   } else {
     throw new Error('Invalid LLM_PROVIDER specified in .env file');
@@ -41,23 +44,6 @@ async function getLLMChoice(prompt) {
 }
 
 async function main() {
-  const serverProcess = spawn('node', ['server.js']);
-
-  // Ensure the server process is killed when the client exits
-  process.on('exit', () => {
-    serverProcess.kill();
-  });
-
-  serverProcess.stderr.on('data', (data) => {
-    console.error(`Server stderr: ${data}`);
-  });
-
-  const transport = new StdioClientTransport(serverProcess);
-  const client = new McpClient({ transport });
-
-  await client.connect();
-  console.log('MCP client connected to server.');
-
   const playerColor = process.argv[2];
   if (!playerColor || !['w', 'b'].includes(playerColor)) {
     console.error('Usage: node mcp_client.js <w|b>');
@@ -65,36 +51,75 @@ async function main() {
   }
 
   console.log(`MCP client playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
+  console.log('Connecting to server...');
 
-  while (true) {
-    const gameState = await client.callTool('get_game_state', {});
-    const gameStateText = JSON.parse(gameState.content[0].text);
+  const socket = io(SERVER_URL);
 
-    if (gameStateText.turn === playerColor) {
-      const legalMoves = await client.callTool('get_legal_moves', {});
-      const legalMovesText = JSON.parse(legalMoves.content[0].text);
+  socket.on('connect', () => {
+    console.log('Connected to server.');
+  });
 
-      const prompt = `
-        You are a chess grandmaster. It is your turn to move.
-        The current board state in FEN is: ${gameStateText.fen}
-        The legal moves are: ${legalMovesText.join(', ')}
-        Your response must be a single move in algebraic notation from the list of legal moves.
-      `;
-
-      let move;
-      let validMove = false;
-      while (!validMove) {
-        move = await getLLMChoice(prompt);
-        if (legalMovesText.includes(move)) {
-          validMove = true;
-        } else {
-          console.log(`Invalid move received from LLM: ${move}. Retrying...`);
-        }
-      }
-
-      await client.callTool('make_move', { move });
+  socket.on('boardState', (fen) => {
+    chess.load(fen);
+    console.log(`Board updated: ${fen}`);
+    
+    // Check if it's this player's turn
+    if (chess.turn() === playerColor) {
+      makeMove();
     }
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a second before checking again
+  });
+
+  socket.on('gameStatus', (status) => {
+    console.log(`Game status: ${status}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server.');
+  });
+
+  async function makeMove() {
+    const legalMoves = chess.moves();
+    
+    if (legalMoves.length === 0) {
+      console.log('No legal moves available.');
+      return;
+    }
+
+    const prompt = `
+      You are a chess grandmaster. It is your turn to move.
+      The current board state in FEN is: ${chess.fen()}
+      The legal moves are: ${legalMoves.join(', ')}
+      Your response must be a single move in algebraic notation from the list of legal moves.
+      Only respond with the move, nothing else.
+    `;
+
+    let move;
+    let validMove = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    while (!validMove && attempts < maxAttempts) {
+      move = await getLLMChoice(prompt);
+      move = move.trim();
+      console.log(`LLM suggested move: ${move}`);
+      
+      if (legalMoves.includes(move)) {
+        validMove = true;
+      } else {
+        attempts++;
+        console.log(`Invalid move received from LLM: ${move}. Retrying... (${attempts}/${maxAttempts})`);
+      }
+    }
+
+    if (validMove) {
+      console.log(`Making move: ${move}`);
+      socket.emit('makeMove', move);
+    } else {
+      console.error('Failed to get valid move from LLM after max attempts. Making random move.');
+      const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      console.log(`Making random move: ${randomMove}`);
+      socket.emit('makeMove', randomMove);
+    }
   }
 }
 

@@ -25,6 +25,8 @@ let blackBotProcess = null;
 let currentTurn = 'w';
 let whiteIsBot = true;
 let blackIsBot = true;
+let whiteIsMcp = false;
+let blackIsMcp = false;
 
 const BOT_PATH = './bots/';
 
@@ -72,6 +74,8 @@ io.on('connection', (socket) => {
     // Determine if players are human or bot
     whiteIsBot = whiteBot !== 'human';
     blackIsBot = blackBot !== 'human';
+    whiteIsMcp = whiteBot === 'mcp';
+    blackIsMcp = blackBot === 'mcp';
 
     if (whiteIsBot && whiteBot !== 'mcp') {
       whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -109,7 +113,7 @@ io.on('connection', (socket) => {
 
   socket.on('makeMove', (move) => {
     if (!gameActive) return;
-    console.log(`Received move: ${move}`);
+    console.log(`Received move: ${JSON.stringify(move)}`);
 
     const result = chess.move(move);
     if (result) {
@@ -118,10 +122,18 @@ io.on('connection', (socket) => {
 
       if (chess.turn() === 'w' && whiteIsBot) {
         currentTurn = 'w';
-        makeBotMove();
+        if (whiteIsMcp) {
+          io.emit('gameStatus', 'Waiting for MCP move from White');
+        } else {
+          makeBotMove();
+        }
       } else if (chess.turn() === 'b' && blackIsBot) {
         currentTurn = 'b';
-        makeBotMove();
+        if (blackIsMcp) {
+          io.emit('gameStatus', 'Waiting for MCP move from Black');
+        } else {
+          makeBotMove();
+        }
       } else {
         io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
       }
@@ -197,16 +209,20 @@ function handleBotOutput(output, color) {
           //   if (blackBotProcess) blackBotProcess.kill();
           // } else {
           // Only switch to bot move if the current player is a bot
-          if (chess.turn() === 'w' && whiteIsBot && whiteBotProcess) {
+          if (chess.turn() === 'w' && whiteIsBot) {
             currentTurn = 'w';
-            makeBotMove();
-          } else if (chess.turn() === 'b' && blackIsBot && blackBotProcess) {
+            if (whiteIsMcp) {
+              io.emit('gameStatus', 'Waiting for MCP move from White');
+            } else if (whiteBotProcess) {
+              makeBotMove();
+            }
+          } else if (chess.turn() === 'b' && blackIsBot) {
             currentTurn = 'b';
-            makeBotMove();
-          } else if (chess.turn() === 'w' && whiteIsBot && whiteBot === 'mcp') {
-            io.emit('gameStatus', 'Waiting for MCP move from White');
-          } else if (chess.turn() === 'b' && blackIsBot && blackBot === 'mcp') {
-            io.emit('gameStatus', 'Waiting for MCP move from Black');
+            if (blackIsMcp) {
+              io.emit('gameStatus', 'Waiting for MCP move from Black');
+            } else if (blackBotProcess) {
+              makeBotMove();
+            }
           } else {
             io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
           }
@@ -282,16 +298,20 @@ jan_server.tool(
         io.emit('boardState', chess.fen());
         io.emit('gamePgn', chess.pgn());
 
-        if (chess.turn() === 'w' && whiteIsBot && whiteBotProcess) {
+        if (chess.turn() === 'w' && whiteIsBot) {
           currentTurn = 'w';
-          makeBotMove();
-        } else if (chess.turn() === 'b' && blackIsBot && blackBotProcess) {
+          if (whiteIsMcp) {
+            io.emit('gameStatus', 'Waiting for MCP move from White');
+          } else if (whiteBotProcess) {
+            makeBotMove();
+          }
+        } else if (chess.turn() === 'b' && blackIsBot) {
           currentTurn = 'b';
-          makeBotMove();
-        } else if (chess.turn() === 'w' && whiteIsBot && whiteBot === 'mcp') {
-          io.emit('gameStatus', 'Waiting for MCP move from White');
-        } else if (chess.turn() === 'b' && blackIsBot && blackBot === 'mcp') {
-          io.emit('gameStatus', 'Waiting for MCP move from Black');
+          if (blackIsMcp) {
+            io.emit('gameStatus', 'Waiting for MCP move from Black');
+          } else if (blackBotProcess) {
+            makeBotMove();
+          }
         } else {
           io.emit('gameStatus', `${chess.turn() === 'w' ? 'White' : 'Black'} human to move`);
         }
