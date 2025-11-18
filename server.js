@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -27,6 +28,8 @@ let whiteIsBot = true;
 let blackIsBot = true;
 let whiteIsMcp = false;
 let blackIsMcp = false;
+let whiteMcpProcess = null;
+let blackMcpProcess = null;
 
 const BOT_PATH = './bots/';
 
@@ -53,6 +56,17 @@ app.get('/api/bots', (req, res) => {
   });
 });
 
+app.get('/api/llms', async (req, res) => {
+  try {
+    const response = await axios.get('http://localhost:11434/api/tags');
+    const models = response.data.models.map(model => model.name);
+    res.json(models);
+  } catch (error) {
+    console.error('Failed to fetch LLMs from Ollama:', error.message);
+    res.status(500).json({ error: 'Failed to fetch LLMs' });
+  }
+});
+
 io.on('connection', (socket) => {
   console.log('a user connected');
   socket.emit('boardState', chess.fen());
@@ -61,7 +75,7 @@ io.on('connection', (socket) => {
     console.log('user disconnected');
   });
 
-  socket.on('startGame', ({ whiteBot, blackBot }) => {
+  socket.on('startGame', ({ whiteBot, blackBot, whiteModel, blackModel }) => {
     if (gameActive) {
       console.log('Game already active.');
       return;
@@ -97,6 +111,24 @@ io.on('connection', (socket) => {
       blackBotProcess.stderr.on('data', (data) => {
         console.error(`Black Bot Error: ${data}`);
       });
+    }
+
+    if (whiteIsMcp) {
+      console.log(`Starting White MCP with model: ${whiteModel || 'default'}`);
+      const args = ['mcp_client.js', 'w'];
+      if (whiteModel) args.push(whiteModel);
+
+      whiteMcpProcess = spawn('node', args, { stdio: ['inherit', 'inherit', 'inherit'] });
+      whiteMcpProcess.on('error', (err) => console.error('White MCP Error:', err));
+    }
+
+    if (blackIsMcp) {
+      console.log(`Starting Black MCP with model: ${blackModel || 'default'}`);
+      const args = ['mcp_client.js', 'b'];
+      if (blackModel) args.push(blackModel);
+
+      blackMcpProcess = spawn('node', args, { stdio: ['inherit', 'inherit', 'inherit'] });
+      blackMcpProcess.on('error', (err) => console.error('Black MCP Error:', err));
     }
 
     gameActive = true;
@@ -157,6 +189,15 @@ io.on('connection', (socket) => {
     io.emit('gamePgn', '');
     gameActive = false;
     currentTurn = 'w';
+
+    if (whiteMcpProcess) {
+      whiteMcpProcess.kill();
+      whiteMcpProcess = null;
+    }
+    if (blackMcpProcess) {
+      blackMcpProcess.kill();
+      blackMcpProcess = null;
+    }
   });
 });
 

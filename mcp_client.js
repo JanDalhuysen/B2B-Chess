@@ -4,18 +4,20 @@ import { Chess } from 'chess.js';
 import axios from 'axios';
 import 'dotenv/config';
 
-const {
-  LLM_PROVIDER,
-  OLLAMA_URL,
-  OLLAMA_MODEL,
-  OPENROUTER_API_KEY,
-  OPENROUTER_MODEL,
-} = process.env;
+// Environment variables are accessed directly from process.env to allow for runtime updates
 
 const SERVER_URL = 'http://localhost:3000';
 const chess = new Chess();
 
 async function getLLMChoice(prompt) {
+  const {
+    LLM_PROVIDER,
+    OLLAMA_URL = 'http://localhost:11434',
+    OLLAMA_MODEL,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+  } = process.env;
+
   if (LLM_PROVIDER === 'ollama') {
     const response = await axios.post(`${OLLAMA_URL}/api/generate`, {
       model: OLLAMA_MODEL,
@@ -39,15 +41,29 @@ async function getLLMChoice(prompt) {
     console.log(response.data);
     return response.data.choices[0].message.content.trim();
   } else {
-    throw new Error('Invalid LLM_PROVIDER specified in .env file');
+    throw new Error(`Invalid LLM_PROVIDER specified in .env file: ${LLM_PROVIDER}`);
   }
 }
 
 async function main() {
   const playerColor = process.argv[2];
+  const modelName = process.argv[3];
+
   if (!playerColor || !['w', 'b'].includes(playerColor)) {
-    console.error('Usage: node mcp_client.js <w|b>');
+    console.error('Usage: node mcp_client.js <w|b> [model_name]');
     process.exit(1);
+  }
+
+  if (modelName) {
+    console.log(`Using model: ${modelName}`);
+    // Override the environment variable for this process
+    process.env.OLLAMA_MODEL = modelName;
+    // If a model is explicitly provided, we assume it's an Ollama model for now
+    // or we could just let the provider logic handle it. 
+    // For this implementation, we'll force provider to ollama if it's not set or if we want to be safe.
+    // But let's just set the model and keep the provider logic as is, assuming user selects appropriate model.
+    // Actually, if we are picking from a list of Ollama models, we should probably force provider to 'ollama'.
+    process.env.LLM_PROVIDER = 'ollama';
   }
 
   console.log(`MCP client playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
@@ -62,7 +78,7 @@ async function main() {
   socket.on('boardState', (fen) => {
     chess.load(fen);
     console.log(`Board updated: ${fen}`);
-    
+
     // Check if it's this player's turn
     if (chess.turn() === playerColor) {
       makeMove();
@@ -79,7 +95,7 @@ async function main() {
 
   async function makeMove() {
     const legalMoves = chess.moves();
-    
+
     if (legalMoves.length === 0) {
       console.log('No legal moves available.');
       return;
@@ -97,12 +113,12 @@ async function main() {
     let validMove = false;
     let attempts = 0;
     const maxAttempts = 5;
-    
+
     while (!validMove && attempts < maxAttempts) {
       move = await getLLMChoice(prompt);
       move = move.trim();
       console.log(`LLM suggested move: ${move}`);
-      
+
       if (legalMoves.includes(move)) {
         validMove = true;
       } else {

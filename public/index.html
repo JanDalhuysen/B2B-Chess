@@ -109,6 +109,23 @@
         color: black;
       }
 
+      .model-selector {
+        margin-top: 10px;
+        padding: 15px;
+        background: var(--background);
+        border-radius: 6px;
+        border-left: 3px solid var(--purple);
+      }
+
+      .model-selector.hidden {
+        display: none;
+      }
+
+      .model-selector label {
+        color: var(--purple);
+        font-size: 0.9rem;
+      }
+
       label {
         display: block;
         margin-bottom: 8px;
@@ -259,6 +276,12 @@
             <option value="human">Human</option>
             <option value="mcp">MCP</option>
           </select>
+          <div id="whiteModelSelector" class="model-selector hidden">
+            <label for="whiteModel">Select Model:</label>
+            <select id="whiteModel">
+              <option value="">Loading models...</option>
+            </select>
+          </div>
         </div>
 
         <div class="player-selector">
@@ -268,6 +291,12 @@
             <option value="human">Human</option>
             <option value="mcp">MCP</option>
           </select>
+          <div id="blackModelSelector" class="model-selector hidden">
+            <label for="blackModel">Select Model:</label>
+            <select id="blackModel">
+              <option value="">Loading models...</option>
+            </select>
+          </div>
         </div>
 
         <div class="buttons">
@@ -291,6 +320,7 @@
 
     <script>
       $(document).ready(function () {
+        // Load bots
         $.get('/api/bots', function (bots) {
           const whitePlayerSelect = $('#whitePlayer');
           const blackPlayerSelect = $('#blackPlayer');
@@ -309,6 +339,45 @@
             }
             blackPlayerSelect.append(blackOption);
           });
+        });
+
+        // Load LLM models
+        $.get('/api/llms', function (models) {
+          const whiteModelSelect = $('#whiteModel');
+          const blackModelSelect = $('#blackModel');
+
+          whiteModelSelect.empty();
+          blackModelSelect.empty();
+
+          if (models.length === 0) {
+            whiteModelSelect.append('<option value="">No models available</option>');
+            blackModelSelect.append('<option value="">No models available</option>');
+          } else {
+            models.forEach((model, index) => {
+              whiteModelSelect.append(`<option value="${model}">${model}</option>`);
+              blackModelSelect.append(`<option value="${model}">${model}</option>`);
+            });
+          }
+        }).fail(function() {
+          $('#whiteModel').html('<option value="">Failed to load models</option>');
+          $('#blackModel').html('<option value="">Failed to load models</option>');
+        });
+
+        // Show/hide model selector based on player type
+        $('#whitePlayer').on('change', function() {
+          if ($(this).val() === 'mcp') {
+            $('#whiteModelSelector').removeClass('hidden');
+          } else {
+            $('#whiteModelSelector').addClass('hidden');
+          }
+        });
+
+        $('#blackPlayer').on('change', function() {
+          if ($(this).val() === 'mcp') {
+            $('#blackModelSelector').removeClass('hidden');
+          } else {
+            $('#blackModelSelector').addClass('hidden');
+          }
         });
       });
 
@@ -406,9 +475,14 @@
       $("#startGame").on("click", () => {
         whitePlayer = $("#whitePlayer").val();
         blackPlayer = $("#blackPlayer").val();
+        const whiteModel = whitePlayer === 'mcp' ? $("#whiteModel").val() : null;
+        const blackModel = blackPlayer === 'mcp' ? $("#blackModel").val() : null;
+        
         socket.emit("startGame", {
           whiteBot: whitePlayer,
           blackBot: blackPlayer,
+          whiteModel: whiteModel,
+          blackModel: blackModel,
         });
       });
 
