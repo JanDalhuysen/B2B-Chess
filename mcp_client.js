@@ -55,15 +55,20 @@ async function main() {
   }
 
   if (modelName) {
-    console.log(`Using model: ${modelName}`);
-    // Override the environment variable for this process
-    process.env.OLLAMA_MODEL = modelName;
-    // If a model is explicitly provided, we assume it's an Ollama model for now
-    // or we could just let the provider logic handle it. 
-    // For this implementation, we'll force provider to ollama if it's not set or if we want to be safe.
-    // But let's just set the model and keep the provider logic as is, assuming user selects appropriate model.
-    // Actually, if we are picking from a list of Ollama models, we should probably force provider to 'ollama'.
-    process.env.LLM_PROVIDER = 'ollama';
+    console.log(`Model argument provided: ${modelName}`);
+    if (process.env.LLM_PROVIDER === 'openrouter') {
+      console.log(`OpenRouter provider configured in .env. Ignoring argument '${modelName}' which is likely from the UI (Ollama-only). Using .env model: ${process.env.OPENROUTER_MODEL}`);
+    } else {
+      console.log(`Using Ollama model: ${modelName}`);
+      // Override the environment variable for this process
+      process.env.OLLAMA_MODEL = modelName;
+      // If a model is explicitly provided, we assume it's an Ollama model for now
+      // or we could just let the provider logic handle it. 
+      // For this implementation, we'll force provider to ollama if it's not set or if we want to be safe.
+      // But let's just set the model and keep the provider logic as is, assuming user selects appropriate model.
+      // Actually, if we are picking from a list of Ollama models, we should probably force provider to 'ollama'.
+      process.env.LLM_PROVIDER = 'ollama';
+    }
   }
 
   console.log(`MCP client playing as ${playerColor === 'w' ? 'White' : 'Black'}`);

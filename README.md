@@ -53,6 +53,7 @@ This project now includes an MCP client that allows you to play against a Large 
 Create a `.env` file in the root of the project and add the following configuration:
 
 **For Ollama:**
+
 ```
 LLM_PROVIDER=ollama
 OLLAMA_URL=http://localhost:11434
@@ -60,24 +61,17 @@ OLLAMA_MODEL=llama2
 ```
 
 **For OpenRouter:**
+
 ```
 LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_api_key
 OPENROUTER_MODEL=google/gemini-flash-1.5
 ```
 
-### 2. Start the MCP Client
+### 2. Run the server
 
-Run one of the following commands to start the MCP client, depending on which color you want the LLM to play as. The client will automatically start the chess server.
-
-**To play as White:**
 ```bash
-npm run mcp:white
-```
-
-**To play as Black:**
-```bash
-npm run mcp:black
+node server.js
 ```
 
 ### 4. Start the Game
