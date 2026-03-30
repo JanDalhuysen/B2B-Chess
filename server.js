@@ -12,8 +12,8 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -42,7 +42,7 @@ app.get('/api/bots', (req, res) => {
       return res.status(500).json({ error: 'Failed to retrieve bots' });
     }
 
-    const bots = files.map(file => {
+    const bots = files.map((file) => {
       const extension = path.extname(file);
       const os = extension === '.exe' ? 'Windows' : 'Linux';
       const name = file.replace(extension, '');
@@ -59,7 +59,7 @@ app.get('/api/bots', (req, res) => {
 app.get('/api/llms', async (req, res) => {
   try {
     const response = await axios.get('http://localhost:11434/api/tags');
-    const models = response.data.models.map(model => model.name);
+    const models = response.data.models.map((model) => model.name);
     res.json(models);
   } catch (error) {
     console.error('Failed to fetch LLMs from Ollama:', error.message);
@@ -92,7 +92,9 @@ io.on('connection', (socket) => {
     blackIsMcp = blackBot === 'mcp';
 
     if (whiteIsBot && whiteBot !== 'mcp') {
-      whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       whiteBotProcess.stdout.on('data', (data) => {
         console.log(`White Bot: ${data}`);
         handleBotOutput(data.toString(), 'w');
@@ -103,7 +105,9 @@ io.on('connection', (socket) => {
     }
 
     if (blackIsBot && blackBot !== 'mcp') {
-      blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       blackBotProcess.stdout.on('data', (data) => {
         console.log(`Black Bot: ${data}`);
         handleBotOutput(data.toString(), 'b');
@@ -118,7 +122,9 @@ io.on('connection', (socket) => {
       const args = ['mcp_client.js', 'w'];
       if (whiteModel) args.push(whiteModel);
 
-      whiteMcpProcess = spawn('node', args, { stdio: ['inherit', 'inherit', 'inherit'] });
+      whiteMcpProcess = spawn('node', args, {
+        stdio: ['inherit', 'inherit', 'inherit'],
+      });
       whiteMcpProcess.on('error', (err) => console.error('White MCP Error:', err));
     }
 
@@ -127,7 +133,9 @@ io.on('connection', (socket) => {
       const args = ['mcp_client.js', 'b'];
       if (blackModel) args.push(blackModel);
 
-      blackMcpProcess = spawn('node', args, { stdio: ['inherit', 'inherit', 'inherit'] });
+      blackMcpProcess = spawn('node', args, {
+        stdio: ['inherit', 'inherit', 'inherit'],
+      });
       blackMcpProcess.on('error', (err) => console.error('Black MCP Error:', err));
     }
 
@@ -223,7 +231,7 @@ function handleBotOutput(output, color) {
   if (!gameActive) return;
 
   const lines = output.split('\n');
-  const bestmoveLine = lines.find(line => line.startsWith('bestmove'));
+  const bestmoveLine = lines.find((line) => line.startsWith('bestmove'));
 
   if (bestmoveLine) {
     const move = bestmoveLine.split(' ')[1];
@@ -283,47 +291,37 @@ const jan_server = new McpServer({
   version: '1.0.0',
 });
 
-jan_server.tool("get_game_state",
-  z.object({
-    method: z.literal('get_game_state'),
-    params: z.object({}),
-  }),
-  async () => {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            fen: chess.fen(),
-            turn: chess.turn(),
-            history: chess.history(),
-          }),
-        },
-      ],
-    };
-  }
-);
+jan_server.tool('get_game_state', {}, async () => {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          fen: chess.fen(),
+          turn: chess.turn(),
+          history: chess.history(),
+        }),
+      },
+    ],
+  };
+});
 
-jan_server.tool("get_legal_moves",
-  z.object({
-    method: z.literal('get_legal_moves'),
-    params: z.object({}),
-  }),
-  async () => {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(chess.moves()),
-        },
-      ],
-    };
-  }
-);
+jan_server.tool('get_legal_moves', {}, async () => {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(chess.moves()),
+      },
+    ],
+  };
+});
 
 jan_server.tool(
-  "make_move",
-  { move: z.string().describe('The move to make in algebraic notation (e.g., e2e4, e7e8q).') },
+  'make_move',
+  {
+    move: z.string().describe('The move to make in algebraic notation (e.g., e2e4, e7e8q).'),
+  },
   async ({ move }) => {
     try {
       // If move is an object, try to extract the move string
@@ -385,7 +383,7 @@ jan_server.tool(
         ],
       };
     }
-  }
+  },
 );
 
 // jan_server.tool("make_move",
@@ -452,5 +450,5 @@ jan_server.connect(transport);
 
 const port = process.env.PORT || 3000;
 httpServer.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`Server is running at http://localhost:${port}`);
 });

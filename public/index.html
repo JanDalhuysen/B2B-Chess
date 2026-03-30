@@ -1,6 +1,8 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>B2B Chess</title>
     <link
       rel="stylesheet"
@@ -100,12 +102,12 @@
       }
 
       .player-selector h3.white::before {
-        content: "●";
+        content: '●';
         color: white;
       }
 
       .player-selector h3.black::before {
-        content: "●";
+        content: '●';
         color: black;
       }
 
@@ -202,7 +204,8 @@
         font-size: 1.2rem;
       }
 
-      #status, #pgn {
+      #status,
+      #pgn {
         background: var(--current-line);
         padding: 15px;
         border-radius: 6px;
@@ -239,11 +242,11 @@
         .container {
           grid-template-columns: 1fr;
         }
-        
+
         #board {
           max-width: 100%;
         }
-        
+
         .buttons {
           flex-direction: column;
         }
@@ -358,13 +361,13 @@
               blackModelSelect.append(`<option value="${model}">${model}</option>`);
             });
           }
-        }).fail(function() {
+        }).fail(function () {
           $('#whiteModel').html('<option value="">Failed to load models</option>');
           $('#blackModel').html('<option value="">Failed to load models</option>');
         });
 
         // Show/hide model selector based on player type
-        $('#whitePlayer').on('change', function() {
+        $('#whitePlayer').on('change', function () {
           if ($(this).val() === 'mcp') {
             $('#whiteModelSelector').removeClass('hidden');
           } else {
@@ -372,7 +375,7 @@
           }
         });
 
-        $('#blackPlayer').on('change', function() {
+        $('#blackPlayer').on('change', function () {
           if ($(this).val() === 'mcp') {
             $('#blackModelSelector').removeClass('hidden');
           } else {
@@ -384,10 +387,10 @@
       const socket = io();
       let board = null;
       const game = new Chess();
-      const status = $("#status");
-      const pgn = $("#pgn");
-      let whitePlayer = "human";
-      let blackPlayer = "stockfish-windows-x86-64-avx2.exe";
+      const status = $('#status');
+      const pgn = $('#pgn');
+      let whitePlayer = 'human';
+      let blackPlayer = 'stockfish-windows-x86-64-avx2.exe';
 
       function onDragStart(source, piece, position, orientation) {
         // do not pick up pieces if the game is over
@@ -395,15 +398,15 @@
 
         // only pick up pieces for the side to move
         if (
-          (game.turn() === "w" && piece.search(/^b/) !== -1) ||
-          (game.turn() === "b" && piece.search(/^w/) !== -1)
+          (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+          (game.turn() === 'b' && piece.search(/^w/) !== -1)
         ) {
           return false;
         }
 
         if (
-          (game.turn() === "w" && whitePlayer !== "human") ||
-          (game.turn() === "b" && blackPlayer !== "human")
+          (game.turn() === 'w' && whitePlayer !== 'human') ||
+          (game.turn() === 'b' && blackPlayer !== 'human')
         ) {
           return false;
         }
@@ -416,16 +419,16 @@
           move = game.move({
             from: source,
             to: target,
-            promotion: "q", // NOTE: always promote to a queen for simplicity
+            promotion: 'q', // NOTE: always promote to a queen for simplicity
           });
         } catch (e) {
           // illegal move
           console.log(e);
         }
 
-        if (move === null) return "snapback";
+        if (move === null) return 'snapback';
 
-        socket.emit("makeMove", move);
+        socket.emit('makeMove', move);
       }
 
       // update the board position after the piece snap
@@ -436,24 +439,24 @@
 
       const config = {
         draggable: true,
-        position: "start",
+        position: 'start',
         onDragStart: onDragStart,
         onDrop: onDrop,
         onSnapEnd: onSnapEnd,
         appearSpeed: 300,
         moveSpeed: 200,
         snapbackSpeed: 100,
-        snapSpeed: 150
+        snapSpeed: 150,
       };
-      
+
       // Initialize board after a short delay to ensure DOM is ready
       setTimeout(() => {
-        board = Chessboard("board", config);
+        board = Chessboard('board', config);
         // Remove placeholder
         document.querySelector('.chessboard-placeholder').style.display = 'none';
       }, 100);
 
-      socket.on("boardState", (fen) => {
+      socket.on('boardState', (fen) => {
         try {
           game.load(fen);
         } catch (e) {
@@ -464,21 +467,21 @@
         }
       });
 
-      socket.on("gameStatus", (msg) => {
+      socket.on('gameStatus', (msg) => {
         status.text(msg);
       });
 
-      socket.on("gamePgn", (pgnStr) => {
+      socket.on('gamePgn', (pgnStr) => {
         pgn.text(pgnStr);
       });
 
-      $("#startGame").on("click", () => {
-        whitePlayer = $("#whitePlayer").val();
-        blackPlayer = $("#blackPlayer").val();
-        const whiteModel = whitePlayer === 'mcp' ? $("#whiteModel").val() : null;
-        const blackModel = blackPlayer === 'mcp' ? $("#blackModel").val() : null;
-        
-        socket.emit("startGame", {
+      $('#startGame').on('click', () => {
+        whitePlayer = $('#whitePlayer').val();
+        blackPlayer = $('#blackPlayer').val();
+        const whiteModel = whitePlayer === 'mcp' ? $('#whiteModel').val() : null;
+        const blackModel = blackPlayer === 'mcp' ? $('#blackModel').val() : null;
+
+        socket.emit('startGame', {
           whiteBot: whitePlayer,
           blackBot: blackPlayer,
           whiteModel: whiteModel,
@@ -486,8 +489,8 @@
         });
       });
 
-      $("#resetGame").on("click", () => {
-        socket.emit("resetGame");
+      $('#resetGame').on('click', () => {
+        socket.emit('resetGame');
       });
     </script>
   </body>
