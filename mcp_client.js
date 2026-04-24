@@ -8,27 +8,34 @@ import 'dotenv/config';
 const SERVER_URL = 'http://localhost:3000';
 const chess = new Chess();
 
-async function getLLMChoice(prompt) {
-  const {
-    LLM_PROVIDER,
-    OLLAMA_URL = 'http://localhost:11434',
-    OLLAMA_MODEL,
-    OPENROUTER_API_KEY,
-    OPENROUTER_MODEL,
-  } = process.env;
+async function getLLMChoice({ prompt, provider, model }) {
+  const { OLLAMA_URL = 'http://localhost:11434', OPENROUTER_API_KEY } = process.env;
 
-  if (LLM_PROVIDER === 'ollama') {
+  if (provider === 'ollama') {
+    if (!model) {
+      throw new Error('Missing Ollama model. Select a model in the UI or set OLLAMA_MODEL.');
+    }
+
     const response = await axios.post(`${OLLAMA_URL}/api/generate`, {
-      model: OLLAMA_MODEL,
+      model,
       prompt,
       stream: false,
     });
     return response.data.response.trim();
-  } else if (LLM_PROVIDER === 'openrouter') {
+  }
+
+  if (provider === 'openrouter') {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('Missing OPENROUTER_API_KEY for OpenRouter provider.');
+    }
+    if (!model) {
+      throw new Error('Missing OpenRouter model. Select a model in the UI or set OPENROUTER_MODEL.');
+    }
+
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: OPENROUTER_MODEL,
+        model,
         messages: [{ role: 'user', content: prompt }],
       },
       {
@@ -39,40 +46,31 @@ async function getLLMChoice(prompt) {
     );
     console.log(response.data);
     return response.data.choices[0].message.content.trim();
-  } else {
-    throw new Error(`Invalid LLM_PROVIDER specified in .env file: ${LLM_PROVIDER}`);
   }
+
+  throw new Error(`Invalid provider: ${provider}`);
 }
 
 async function main() {
   const playerColor = process.argv[2];
-  const modelName = process.argv[3];
+  const providerArg = process.argv[3];
+  const modelArg = process.argv[4];
 
   if (!playerColor || !['w', 'b'].includes(playerColor)) {
-    console.error('Usage: node mcp_client.js <w|b> [model_name]');
+    console.error('Usage: node mcp_client.js <w|b> <ollama|openrouter> [model_name]');
     process.exit(1);
   }
 
-  if (modelName) {
-    console.log(`Model argument provided: ${modelName}`);
-    if (process.env.LLM_PROVIDER === 'openrouter') {
-      console.log(
-        `OpenRouter provider configured in .env. Ignoring argument '${modelName}' which is likely from the UI (Ollama-only). Using .env model: ${process.env.OPENROUTER_MODEL}`,
-      );
-    } else {
-      console.log(`Using Ollama model: ${modelName}`);
-      // Override the environment variable for this process
-      process.env.OLLAMA_MODEL = modelName;
-      // If a model is explicitly provided, we assume it's an Ollama model for now
-      // or we could just let the provider logic handle it.
-      // For this implementation, we'll force provider to ollama if it's not set or if we want to be safe.
-      // But let's just set the model and keep the provider logic as is, assuming user selects appropriate model.
-      // Actually, if we are picking from a list of Ollama models, we should probably force provider to 'ollama'.
-      process.env.LLM_PROVIDER = 'ollama';
-    }
+  if (!providerArg || !['ollama', 'openrouter'].includes(providerArg)) {
+    console.error('Provider is required and must be "ollama" or "openrouter".');
+    process.exit(1);
   }
 
+  const provider = providerArg;
+  const model = modelArg || (provider === 'ollama' ? process.env.OLLAMA_MODEL : process.env.OPENROUTER_MODEL);
+
   console.log(`MCP client playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
+  console.log(`Provider: ${provider}, model: ${model || 'none'}`);
   console.log('Connecting to server...');
 
   const socket = io(SERVER_URL);
@@ -121,7 +119,7 @@ async function main() {
     const maxAttempts = 5;
 
     while (!validMove && attempts < maxAttempts) {
-      move = await getLLMChoice(prompt);
+      move = await getLLMChoice({ prompt, provider, model });
       move = move.trim();
       console.log(`LLM suggested move: ${move}`);
 
@@ -129,9 +127,7 @@ async function main() {
         validMove = true;
       } else {
         attempts++;
-        console.log(
-          `Invalid move received from LLM: ${move}. Retrying... (${attempts}/${maxAttempts})`,
-        );
+        console.log(`Invalid move received from LLM: ${move}. Retrying... (${attempts}/${maxAttempts})`);
       }
     }
 

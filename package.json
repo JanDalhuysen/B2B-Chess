@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "mcp:white": "node mcp_client.js w",
-    "mcp:black": "node mcp_client.js b"
+    "mcp:white": "node mcp_client.js w ollama",
+    "mcp:black": "node mcp_client.js b ollama"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",

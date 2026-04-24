@@ -46,27 +46,27 @@ You will see a graphical chessboard, and the bots will start playing against eac
 
 ## Playing Against an LLM
 
-This project now includes an MCP client that allows you to play against a Large Language Model (LLM) such as a local Ollama instance or a model from OpenRouter.
+This project includes an MCP-based AI Model player that supports local Ollama models and online OpenRouter models.
 
-### 1. Configure the LLM Provider
+### 1. Configure Secrets and Defaults in `.env`
 
 Create a `.env` file in the root of the project and add the following configuration:
 
-**For Ollama:**
-
-```
-LLM_PROVIDER=ollama
+```env
 OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama2
-```
+OLLAMA_MODEL=llama3.1
 
-**For OpenRouter:**
-
-```
-LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_api_key
-OPENROUTER_MODEL=google/gemini-flash-1.5
+OPENROUTER_MODEL=qwen/qwen3-next-80b-a3b-instruct:free
+
+# Optional UI quick-pick list
+OPENROUTER_MODELS=qwen/qwen3-next-80b-a3b-instruct:free,openai/gpt-4o-mini
 ```
+
+Notes:
+
+- `.env` stores secrets and defaults only.
+- Per-game selections (player type, provider, model) are chosen in the UI.
 
 ### 2. Run the server
 
@@ -74,9 +74,19 @@ OPENROUTER_MODEL=google/gemini-flash-1.5
 node server.js
 ```
 
-### 4. Start the Game
+### 3. Start the game from the UI
 
-In your browser, select "Human" for the color you will play, and "MCP" for the color the LLM will play. Then, click "Start Game".
+For each side, select:
+
+- `Player Type`: `Human`, `Local Engine`, or `AI Model (via MCP)`
+- If `AI Model`: choose `Provider` (`Ollama` or `OpenRouter`) and model
+
+The UI shows setup status inline:
+
+- `Ollama reachable` / `Ollama not running`
+- `OpenRouter API key detected` / `Missing OPENROUTER_API_KEY`
+
+Click `Start Game` after selecting both sides.
 
 ## Notes
 

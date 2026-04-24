@@ -7,7 +7,6 @@ import { Server } from 'socket.io';
 import { z } from 'zod';
 import { Chess } from 'chess.js';
 import { spawn } from 'child_process';
-import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
@@ -30,8 +29,19 @@ let whiteIsMcp = false;
 let blackIsMcp = false;
 let whiteMcpProcess = null;
 let blackMcpProcess = null;
+let whitePlayerConfig = { kind: 'human' };
+let blackPlayerConfig = { kind: 'human' };
 
 const BOT_PATH = './bots/';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL || '';
+const OPENROUTER_DEFAULT_MODEL = process.env.OPENROUTER_MODEL || '';
+const OPENROUTER_CURATED_MODELS = (
+  process.env.OPENROUTER_MODELS || 'qwen/qwen3-next-80b-a3b-instruct:free,openai/gpt-4o-mini,anthropic/claude-3.5-haiku'
+)
+  .split(',')
+  .map((model) => model.trim())
+  .filter(Boolean);
 
 app.use(express.static('public'));
 
@@ -58,7 +68,7 @@ app.get('/api/bots', (req, res) => {
 
 app.get('/api/llms', async (req, res) => {
   try {
-    const response = await axios.get('http://localhost:11434/api/tags');
+    const response = await axios.get(`${OLLAMA_URL}/api/tags`);
     const models = response.data.models.map((model) => model.name);
     res.json(models);
   } catch (error) {
@@ -66,6 +76,61 @@ app.get('/api/llms', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch LLMs' });
   }
 });
+
+app.get('/api/openrouter-models', (req, res) => {
+  res.json(OPENROUTER_CURATED_MODELS);
+});
+
+app.get('/api/ai-status', async (req, res) => {
+  let ollamaReachable = false;
+  let ollamaError = null;
+
+  try {
+    await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 2000 });
+    ollamaReachable = true;
+  } catch (error) {
+    ollamaError = error.message;
+  }
+
+  res.json({
+    ollama: {
+      url: OLLAMA_URL,
+      reachable: ollamaReachable,
+      defaultModel: OLLAMA_DEFAULT_MODEL,
+      error: ollamaError,
+    },
+    openrouter: {
+      apiKeyDetected: Boolean(process.env.OPENROUTER_API_KEY),
+      defaultModel: OPENROUTER_DEFAULT_MODEL,
+    },
+  });
+});
+
+function normalizePlayerConfig(player) {
+  if (!player || typeof player !== 'object') {
+    return { kind: 'human' };
+  }
+
+  if (player.kind === 'human') {
+    return { kind: 'human' };
+  }
+
+  if (player.kind === 'engine') {
+    const bot = typeof player.bot === 'string' ? player.bot.trim() : '';
+    if (!bot) {
+      return { kind: 'human' };
+    }
+    return { kind: 'engine', bot };
+  }
+
+  if (player.kind === 'ai') {
+    const provider = player.provider === 'openrouter' ? 'openrouter' : 'ollama';
+    const model = typeof player.model === 'string' ? player.model.trim() : '';
+    return { kind: 'ai', provider, model };
+  }
+
+  return { kind: 'human' };
+}
 
 io.on('connection', (socket) => {
   console.log('a user connected');
@@ -75,24 +140,45 @@ io.on('connection', (socket) => {
     console.log('user disconnected');
   });
 
-  socket.on('startGame', ({ whiteBot, blackBot, whiteModel, blackModel }) => {
+  socket.on('startGame', ({ white, black }) => {
     if (gameActive) {
       console.log('Game already active.');
       return;
     }
+
     chess = new Chess();
     io.emit('boardState', chess.fen());
     io.emit('gameStatus', 'Game started!');
     io.emit('gamePgn', '');
 
-    // Determine if players are human or bot
-    whiteIsBot = whiteBot !== 'human';
-    blackIsBot = blackBot !== 'human';
-    whiteIsMcp = whiteBot === 'mcp';
-    blackIsMcp = blackBot === 'mcp';
+    whitePlayerConfig = normalizePlayerConfig(white);
+    blackPlayerConfig = normalizePlayerConfig(black);
 
-    if (whiteIsBot && whiteBot !== 'mcp') {
-      whiteBotProcess = spawn(`${BOT_PATH}${whiteBot}`, [], {
+    if (whiteBotProcess) {
+      whiteBotProcess.kill();
+      whiteBotProcess = null;
+    }
+    if (blackBotProcess) {
+      blackBotProcess.kill();
+      blackBotProcess = null;
+    }
+    if (whiteMcpProcess) {
+      whiteMcpProcess.kill();
+      whiteMcpProcess = null;
+    }
+    if (blackMcpProcess) {
+      blackMcpProcess.kill();
+      blackMcpProcess = null;
+    }
+
+    // Determine if players are human or bot
+    whiteIsBot = whitePlayerConfig.kind !== 'human';
+    blackIsBot = blackPlayerConfig.kind !== 'human';
+    whiteIsMcp = whitePlayerConfig.kind === 'ai';
+    blackIsMcp = blackPlayerConfig.kind === 'ai';
+
+    if (whitePlayerConfig.kind === 'engine') {
+      whiteBotProcess = spawn(`${BOT_PATH}${whitePlayerConfig.bot}`, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       whiteBotProcess.stdout.on('data', (data) => {
@@ -104,8 +190,8 @@ io.on('connection', (socket) => {
       });
     }
 
-    if (blackIsBot && blackBot !== 'mcp') {
-      blackBotProcess = spawn(`${BOT_PATH}${blackBot}`, [], {
+    if (blackPlayerConfig.kind === 'engine') {
+      blackBotProcess = spawn(`${BOT_PATH}${blackPlayerConfig.bot}`, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       blackBotProcess.stdout.on('data', (data) => {
@@ -117,10 +203,12 @@ io.on('connection', (socket) => {
       });
     }
 
-    if (whiteIsMcp) {
-      console.log(`Starting White MCP with model: ${whiteModel || 'default'}`);
-      const args = ['mcp_client.js', 'w'];
-      if (whiteModel) args.push(whiteModel);
+    if (whitePlayerConfig.kind === 'ai') {
+      console.log(
+        `Starting White AI provider=${whitePlayerConfig.provider} model=${whitePlayerConfig.model || 'default'}`,
+      );
+      const args = ['mcp_client.js', 'w', whitePlayerConfig.provider];
+      if (whitePlayerConfig.model) args.push(whitePlayerConfig.model);
 
       whiteMcpProcess = spawn('node', args, {
         stdio: ['inherit', 'inherit', 'inherit'],
@@ -128,10 +216,12 @@ io.on('connection', (socket) => {
       whiteMcpProcess.on('error', (err) => console.error('White MCP Error:', err));
     }
 
-    if (blackIsMcp) {
-      console.log(`Starting Black MCP with model: ${blackModel || 'default'}`);
-      const args = ['mcp_client.js', 'b'];
-      if (blackModel) args.push(blackModel);
+    if (blackPlayerConfig.kind === 'ai') {
+      console.log(
+        `Starting Black AI provider=${blackPlayerConfig.provider} model=${blackPlayerConfig.model || 'default'}`,
+      );
+      const args = ['mcp_client.js', 'b', blackPlayerConfig.provider];
+      if (blackPlayerConfig.model) args.push(blackPlayerConfig.model);
 
       blackMcpProcess = spawn('node', args, {
         stdio: ['inherit', 'inherit', 'inherit'],
@@ -142,9 +232,9 @@ io.on('connection', (socket) => {
     gameActive = true;
     currentTurn = 'w';
 
-    if (whiteIsBot && whiteBot !== 'mcp') {
+    if (whitePlayerConfig.kind === 'engine') {
       makeBotMove();
-    } else if (whiteBot === 'mcp') {
+    } else if (whitePlayerConfig.kind === 'ai') {
       io.emit('gameStatus', 'Waiting for MCP move from White');
     } else {
       io.emit('gameStatus', 'White human to move');
