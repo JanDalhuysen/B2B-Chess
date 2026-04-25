@@ -20,25 +20,31 @@ const io = new Server(httpServer);
 let chess = new Chess();
 
 let gameActive = false;
+
 let whiteBotProcess = null;
 let blackBotProcess = null;
+
 let currentTurn = 'w';
+
 let whiteIsBot = true;
 let blackIsBot = true;
+
 let whiteIsMcp = false;
 let blackIsMcp = false;
+
 let whiteMcpProcess = null;
 let blackMcpProcess = null;
+
 let whitePlayerConfig = { kind: 'human' };
 let blackPlayerConfig = { kind: 'human' };
 
 const BOT_PATH = './bots/';
+
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL || '';
+
 const OPENROUTER_DEFAULT_MODEL = process.env.OPENROUTER_MODEL || '';
-const OPENROUTER_CURATED_MODELS = (
-  process.env.OPENROUTER_MODELS || 'qwen/qwen3-next-80b-a3b-instruct:free,openai/gpt-4o-mini,anthropic/claude-3.5-haiku'
-)
+const OPENROUTER_CURATED_MODELS = (process.env.OPENROUTER_MODELS || 'qwen/qwen3-next-80b-a3b-instruct:free,openai/gpt-4o-mini,anthropic/claude-3.5-haiku')
   .split(',')
   .map((model) => model.trim())
   .filter(Boolean);
@@ -204,9 +210,7 @@ io.on('connection', (socket) => {
     }
 
     if (whitePlayerConfig.kind === 'ai') {
-      console.log(
-        `Starting White AI provider=${whitePlayerConfig.provider} model=${whitePlayerConfig.model || 'default'}`,
-      );
+      console.log(`Starting White AI provider=${whitePlayerConfig.provider} model=${whitePlayerConfig.model || 'default'}`);
       const args = ['mcp_client.js', 'w', whitePlayerConfig.provider];
       if (whitePlayerConfig.model) args.push(whitePlayerConfig.model);
 
@@ -217,9 +221,7 @@ io.on('connection', (socket) => {
     }
 
     if (blackPlayerConfig.kind === 'ai') {
-      console.log(
-        `Starting Black AI provider=${blackPlayerConfig.provider} model=${blackPlayerConfig.model || 'default'}`,
-      );
+      console.log(`Starting Black AI provider=${blackPlayerConfig.provider} model=${blackPlayerConfig.model || 'default'}`);
       const args = ['mcp_client.js', 'b', blackPlayerConfig.provider];
       if (blackPlayerConfig.model) args.push(blackPlayerConfig.model);
 
@@ -476,6 +478,14 @@ jan_server.tool(
   },
 );
 
+const transport = new StdioServerTransport();
+jan_server.connect(transport);
+
+const port = process.env.PORT || 3000;
+httpServer.listen(port, () => {
+  console.log(`Server is running at http://localhost:${port}`);
+});
+
 // jan_server.tool("make_move",
 //   z.object({
 //     method: z.literal('make_move'),
@@ -534,11 +544,3 @@ jan_server.tool(
 //     }
 //   }
 // );
-
-const transport = new StdioServerTransport();
-jan_server.connect(transport);
-
-const port = process.env.PORT || 3000;
-httpServer.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});

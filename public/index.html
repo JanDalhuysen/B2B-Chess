@@ -351,11 +351,7 @@
               </select>
 
               <label for="whiteOpenRouterModel">Model (OpenRouter):</label>
-              <input
-                id="whiteOpenRouterModel"
-                list="openrouterModelList"
-                placeholder="e.g. qwen/qwen3-next-80b-a3b-instruct:free"
-              />
+              <input id="whiteOpenRouterModel" list="openrouterModelList" placeholder="e.g. qwen/qwen3-next-80b-a3b-instruct:free" />
             </div>
 
             <div id="whiteAiStatus" class="setup-status">Checking AI setup...</div>
@@ -399,11 +395,7 @@
               </select>
 
               <label for="blackOpenRouterModel">Model (OpenRouter):</label>
-              <input
-                id="blackOpenRouterModel"
-                list="openrouterModelList"
-                placeholder="e.g. qwen/qwen3-next-80b-a3b-instruct:free"
-              />
+              <input id="blackOpenRouterModel" list="openrouterModelList" placeholder="e.g. qwen/qwen3-next-80b-a3b-instruct:free" />
             </div>
 
             <div id="blackAiStatus" class="setup-status">Checking AI setup...</div>
@@ -514,10 +506,7 @@
         }
 
         const provider = $(`#${prefix}AiProvider`).val();
-        const model =
-          provider === 'ollama'
-            ? $(`#${prefix}OllamaModel`).val() || ''
-            : ($(`#${prefix}OpenRouterModel`).val() || '').trim();
+        const model = provider === 'ollama' ? $(`#${prefix}OllamaModel`).val() || '' : ($(`#${prefix}OpenRouterModel`).val() || '').trim();
 
         return {
           kind: 'ai',
@@ -585,8 +574,7 @@
         }
 
         if (!$(`#${prefix}OpenRouterModel`).val()) {
-          const fallbackModel =
-            aiStatus.openrouter.defaultModel || (openrouterModels.length ? openrouterModels[0] : '');
+          const fallbackModel = aiStatus.openrouter.defaultModel || (openrouterModels.length ? openrouterModels[0] : '');
           if (fallbackModel) {
             $(`#${prefix}OpenRouterModel`).val(fallbackModel);
             $(`#${prefix}OpenRouterPreset`).val(fallbackModel);
@@ -758,10 +746,7 @@
           return false;
         }
 
-        if (
-          (game.turn() === 'w' && whitePlayerConfig.kind !== 'human') ||
-          (game.turn() === 'b' && blackPlayerConfig.kind !== 'human')
-        ) {
+        if ((game.turn() === 'w' && whitePlayerConfig.kind !== 'human') || (game.turn() === 'b' && blackPlayerConfig.kind !== 'human')) {
           return false;
         }
       }
